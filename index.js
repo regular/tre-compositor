@@ -4,7 +4,7 @@ const h = require('mutant/html-element')
 const Value = require('mutant/value')
 const computed= require('mutant/computed')
 const setStyle = require('module-styles')('tre-compositor')
-const {makePane, makeDivider, makeSplitPane} = require('split-pane')
+const {makePane, makeDivider, makeSplitPane} = require('tre-split-pane')
 
 setStyle(`
   .tre-finder {
