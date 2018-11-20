@@ -31,8 +31,10 @@ module.exports = function(ssb, opts) {
   const factory = opts.factory
   
   // TODO: selection should be kv
-  const sel = Value()
-
+  const primaryTreeSelection = Value()
+  
+  const primaryStageSelection = opts.primarySelection || Value() // this is kv
+  
   const stageScale = Value(1.0)
   const stageScaleSlider = h('.tre-stage-scale', [
     h('span', 'Zoom:'),
@@ -54,21 +56,28 @@ module.exports = function(ssb, opts) {
     style: {
       width: computed(stageScale, s => `${s * 1080}px`),
       height: computed(stageScale, s => `${s * 1920}px`),
+    },
+    'ev-click': e => {
+      console.log('stage deselect')
+      e.stopPropagation()
+      primaryStageSelection.set(null)
+      return false
     }
   }, [
-    computed(sel, k => {
+    computed(primaryTreeSelection, k => {
       if (!k) return h('div', 'no selection')
       const ret = Value(h('div', 'loading ...'))
       ssb.revisions.get(k, (err, kv) => {
         if (err) return ret.set(h('div', err.message))
         console.log('rendering on stage:', kv)
-        ret.set(renderOnStage(kv, {stageScale}))
+        ret.set(renderOnStage(kv, {stageScale, primarySelection: primaryStageSelection}))
       })
       return ret
     })
   ])
 
-  const editor = computed(sel, k => {
+  const editor = computed([primaryTreeSelection, primaryStageSelection], (k, kv) => {
+    k = kv && revisionRoot(kv) || k // stage selection overrides tree selection
     if (!k) return h('div', 'no selection')
     const ret = Value(h('div', 'loading ...'))
     ssb.revisions.get(k, (err, kv) => {
@@ -82,7 +91,7 @@ module.exports = function(ssb, opts) {
   const renderFinder = Finder(ssb, {
     factory,
     importer,
-    primarySelection: sel,
+    primarySelection: primaryTreeSelection,
     skipFirstLevel: true
   })
 
@@ -92,7 +101,7 @@ module.exports = function(ssb, opts) {
       makeSplitPane({horiz: false}, [
         makePane('48px', [
           h('span', 'selection'),
-          h('span', sel)
+          h('span', primaryTreeSelection)
         ]),
         makeDivider(),
         makeSplitPane({horiz: true}, [
@@ -115,4 +124,8 @@ module.exports = function(ssb, opts) {
     ])
   }
 
+}
+
+function revisionRoot(kv) {
+  return kv.value.content && kv.value.content.revisionRoot || kv.key
 }

@@ -28,7 +28,7 @@
     "tre-client": "^1.1.0",
     "tre-file-importer": "^1.1.0",
     "tre-fonts": "^1.2.0",
-    "tre-images": "^1.0.0"
+    "tre-images": "^1.1.0"
   },
   "dependencies": {
     "module-styles": "^1.0.0",

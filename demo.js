@@ -151,12 +151,17 @@ client( (err, ssb, config) => {
     .use(require('tre-transforms')(ssb))
     .render
 
-  const renderOnStage = RenderStack({
+  const _renderOnStage = RenderStack({
     where: 'stage',
     drafts
-  }, kv => h('div', 'no editor') )
-    .use(require('tre-transforms')())
+  }, kv => h('div', 'RenderStack: no stage renderer found.') )
+    .use(require('tre-transforms')(ssb, {renderOnStage}))
+    .use(require('tre-images')(ssb))
     .render
+
+  function renderOnStage(kv, ctx) {
+    return _renderOnStage(kv, ctx)
+  }
 
   const renderCompositor = Compositor(ssb, {
     importer,
