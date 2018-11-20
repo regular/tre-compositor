@@ -1,6 +1,7 @@
 const {client} = require('tre-client')
 const Compositor = require('.')
 const h = require('mutant/html-element')
+const MutantDict = require('mutant/dict')
 const setStyle = require('module-styles')('tre-compositor-demo')
 const Importer = require('tre-file-importer')
 
@@ -21,10 +22,24 @@ setStyle(`
   .tre-compositor {
     height: 100%;
   }
+  .tre-finder {
+    font-family: sans-serif;
+    font-size: 12pt;
+  }
+  .tre-finder .summary select {
+    font-size: 9pt;
+    background: transparent;
+    border: none;
+    width: 50px;
+  }
   .tre-folders {
     background-color: #777;
   }
-
+  .tre-transforms-pane {
+    font-size: 9pt;
+    background: #aaa;
+    max-width: 200px;
+  }
   .tre-folders .tile {
     border: 1px solid #444;
     background: #666;
@@ -36,21 +51,33 @@ setStyle(`
   }
 `)
 
+function Drafts() {
+  const dicts = {}
+  return {
+    get: k => {
+      if (dicts[k]) return dicts[k]
+      return dicts[k] = MutantDict()
+    }
+  }
+}
+
 function renderDefaultTile(kv, ctx) {
   const c = kv.value && kv.value.content
   const {type} = c
   return h('div', {
     style: {
-      background: 'red',
+      color: 'white',
     }
   }, type)
 }
 
-function RenderStack(where, defaultRender) {
+function RenderStack(opts, defaultRender) {
   const renderers = []
+  const {drafts} = opts
 
   function render(kv, ctx) {
-    const newCtx = Object.assign({}, ctx, {where})
+    const dict = drafts ? drafts.get(kv.key) : null;
+    const newCtx = Object.assign({dict}, opts, ctx)
     let el
     renderers.find( r => el = r(kv, newCtx))
     if (!el) el = defaultRender(kv, newCtx)
@@ -67,6 +94,29 @@ function RenderStack(where, defaultRender) {
   return self
 }
 
+function Factory(opts) {
+  const factories = {}
+  const self = {
+    use: function(module) {
+      const f = module.factory(opts)
+      factories[f.type] = f
+      return self
+    },
+    menu: function(lang) {
+      lang = lang || 'en'
+      return Object.keys(factories).map( k=>{
+        const {i18n, type} = factories[k]
+        const label = i18n[lang] || i18n.en || Object.values(i18n)[0]
+        return {label, type}
+      })
+    },
+    make: function(type) {
+      return factories[type].content()
+    }
+  }
+  return self
+}
+
 client( (err, ssb, config) => {
   console.log('tre config', config.tre)
   if (err) return console.error(err)
@@ -74,23 +124,46 @@ client( (err, ssb, config) => {
   const importer = Importer(ssb)
   importer.use(require('tre-fonts'))
   importer.use(require('tre-images'))
+
+  const factory = Factory()
+    .use(require('tre-transforms'))
+    .use(require('tre-folders'))
   
-  const renderTile = RenderStack('tile', renderDefaultTile)
+  const drafts = Drafts()
+
+  const renderTile = RenderStack({
+    where: 'tile',
+    drafts
+  }, renderDefaultTile)
     .use(require('tre-fonts')(ssb))
     .use(require('tre-images')(ssb))
     .render
 
-  const renderEditor = RenderStack('editor', kv => h('div', 'no editor') )
+  const renderEditor = RenderStack({
+    where: 'editor',
+    drafts
+  }, kv => h('div', 'no editor') )
     .use(require('tre-folders')(ssb, {
       renderTile
     }))
     .use(require('tre-fonts')(ssb))
     .use(require('tre-images')(ssb))
+    .use(require('tre-transforms')(ssb))
+    .render
+
+  const renderOnStage = RenderStack({
+    where: 'stage',
+    drafts
+  }, kv => h('div', 'no editor') )
+    .use(require('tre-transforms')())
     .render
 
   const renderCompositor = Compositor(ssb, {
     importer,
-    renderEditor
+    renderEditor,
+    renderOnStage,
+    factory,
+    drafts
   })
 
   document.body.appendChild(

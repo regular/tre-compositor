@@ -14,15 +14,59 @@ setStyle(`
   .tre-finder li {
     white-space: nowrap;
   }
+  .tre-stage {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    background: green;
+    border: 4em solid yellow;
+  }
 `)
 
 module.exports = function(ssb, opts) {
   opts = opts || {}
   const importer = opts.importer
   const renderEditor = opts.renderEditor || (kv => h('div', 'no editor') )
+  const renderOnStage = opts.renderOnStage || (kv => h('div', 'no stage renderer') )
+  const factory = opts.factory
   
   // TODO: selection should be kv
   const sel = Value()
+
+  const stageScale = Value(1.0)
+  const stageScaleSlider = h('.tre-stage-scale', [
+    h('span', 'Zoom:'),
+    h('input', {
+      type: 'range',
+      value: stageScale,
+      min: '0.25',
+      max: '1.0',
+      step: '0.05',
+      'ev-input': e => {
+        console.log('stage scale:', e.target.value)
+        stageScale.set(Number(e.target.value))
+      }
+    }),
+    h('span', stageScale)
+  ])
+
+  const stage = h('.tre-stage', {
+    style: {
+      width: computed(stageScale, s => `${s * 1080}px`),
+      height: computed(stageScale, s => `${s * 1920}px`),
+    }
+  }, [
+    computed(sel, k => {
+      if (!k) return h('div', 'no selection')
+      const ret = Value(h('div', 'loading ...'))
+      ssb.revisions.get(k, (err, kv) => {
+        if (err) return ret.set(h('div', err.message))
+        console.log('rendering on stage:', kv)
+        ret.set(renderOnStage(kv, {stageScale}))
+      })
+      return ret
+    })
+  ])
 
   const editor = computed(sel, k => {
     if (!k) return h('div', 'no selection')
@@ -36,6 +80,7 @@ module.exports = function(ssb, opts) {
   })
 
   const renderFinder = Finder(ssb, {
+    factory,
     importer,
     primarySelection: sel,
     skipFirstLevel: true
@@ -51,14 +96,20 @@ module.exports = function(ssb, opts) {
         ]),
         makeDivider(),
         makeSplitPane({horiz: true}, [
-          makePane('30%', [
+          makePane('25%', [
             renderFinder(root, ctx)
           ]),
           makeDivider(),
-          makePane('60%', [
+          makePane('20%', [
             h('h1', 'Details'),
             editor
-          ])
+          ]),
+          makeDivider(),
+          makePane('', [
+            h('h1', 'Stage'),
+            stageScaleSlider,
+            stage
+          ]),
         ])
       ])
     ])
