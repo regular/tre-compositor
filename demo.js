@@ -32,6 +32,14 @@ setStyle(`
     border: none;
     width: 50px;
   }
+  .tre-finder ul {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .tre-finder li {
+    padding-top: .2em;
+    padding-bottom: 0;
+  }
   .tre-folders {
     background-color: #777;
   }
@@ -146,8 +154,8 @@ client( (err, ssb, config) => {
     .use(require('tre-folders')(ssb, {
       renderTile
     }))
-    .use(require('tre-fonts')(ssb))
-    .use(require('tre-images')(ssb))
+    //.use(require('tre-fonts')(ssb))
+    //.use(require('tre-images')(ssb))
     .use(require('tre-transforms')(ssb))
     .render
 

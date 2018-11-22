@@ -30,10 +30,9 @@ module.exports = function(ssb, opts) {
   const renderOnStage = opts.renderOnStage || (kv => h('div', 'no stage renderer') )
   const factory = opts.factory
   
-  // TODO: selection should be kv
   const primaryTreeSelection = Value()
   
-  const primaryStageSelection = opts.primarySelection || Value() // this is kv
+  const primaryStageSelection = opts.primarySelection || Value()
   
   const stageScale = Value(1.0)
   const stageScaleSlider = h('.tre-stage-scale', [
@@ -64,28 +63,19 @@ module.exports = function(ssb, opts) {
       return false
     }
   }, [
-    computed(primaryTreeSelection, k => {
-      if (!k) return h('div', 'no selection')
-      const ret = Value(h('div', 'loading ...'))
-      ssb.revisions.get(k, (err, kv) => {
-        if (err) return ret.set(h('div', err.message))
-        console.log('rendering on stage:', kv)
-        ret.set(renderOnStage(kv, {stageScale, primarySelection: primaryStageSelection}))
-      })
-      return ret
+    computed(primaryTreeSelection, kv => {
+      if (!kv) return h('div', 'no selection')
+      console.log('rendering on stage:', kv)
+      return renderOnStage(kv, {stageScale, primarySelection: primaryStageSelection})
     })
   ])
 
-  const editor = computed([primaryTreeSelection, primaryStageSelection], (k, kv) => {
-    k = kv && revisionRoot(kv) || k // stage selection overrides tree selection
-    if (!k) return h('div', 'no selection')
-    const ret = Value(h('div', 'loading ...'))
-    ssb.revisions.get(k, (err, kv) => {
-      if (err) return ret.set(h('div', err.message))
-      console.log('rendering editor for', kv)
-      ret.set(renderEditor(kv, {}))
-    })
-    return ret
+  const editor = computed([primaryTreeSelection, primaryStageSelection], (kv_tree, kv_stage) => {
+    // stage selection beats tree selection
+    const kv = kv_stage || kv_tree
+    if (!kv) return h('div', 'no selection')
+    console.log('selection changed to', kv)
+    return renderEditor(kv, {})
   })
 
   const renderFinder = Finder(ssb, {
@@ -95,13 +85,32 @@ module.exports = function(ssb, opts) {
     skipFirstLevel: true
   })
 
+  const renderSceneGraph = Finder(ssb, {
+    factory,
+    importer,
+    primarySelection: primaryStageSelection,
+    skipFirstLevel: false
+  })
+
   return function renderCompositor(root, ctx) {
+    ctx = ctx || {}
+
+    const sceneGraph = computed(primaryTreeSelection, kv_root => {
+      if (!kv_root) return h('span', 'no selection')
+      const newCtx = Object.assign({}, ctx, {
+        path: [],
+        shouldOpen: kv => true
+      })
+      console.log('scene graph', newCtx)
+      return renderSceneGraph(kv_root, newCtx)
+    })
+
     return h('div.tre-compositor', {
     }, [
       makeSplitPane({horiz: false}, [
         makePane('48px', [
           h('span', 'selection'),
-          h('span', primaryTreeSelection)
+          h('span', computed(primaryTreeSelection, kv => kv && kv.key))
         ]),
         makeDivider(),
         makeSplitPane({horiz: true}, [
@@ -119,7 +128,12 @@ module.exports = function(ssb, opts) {
             stageScaleSlider,
             stage
           ]),
-        ])
+        ]),
+        makeDivider(),
+        makePane('500px', [
+          h('span', 'Scene'),
+          sceneGraph,
+        ]),
       ])
     ])
   }
